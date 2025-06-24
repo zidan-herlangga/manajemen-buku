@@ -1,122 +1,140 @@
-## Penjelasan
+# 📚 Laravel Book Management App
 
-1. `app/Http/Middleware/SessionAuth.php`
+[![Laravel](https://img.shields.io/badge/Laravel-10.x-red?logo=laravel)](https://laravel.com/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![PHP](https://img.shields.io/badge/PHP-8.1%2B-777bb4?logo=php)](https://www.php.net/)
 
-SessionAuth adalah pengaman untuk route, yang memastikan hanya user yang memiliki session is_logged_in yang boleh mengakses halaman tertentu. Jika belum login, mereka akan diarahkan ke halaman login.
+A simple **Laravel 10** application to manage books and categories with search, filter, cover upload, and invoice reports.
 
-```php
-<?php
+![Welcome](screenshots/welcome.png)
 
-namespace App\Http\Middleware;
+---
 
-use Closure;
-use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
+## 🚀 Features
 
-class SessionAuth
-{
-    public function handle(Request $request, Closure $next): Response
-    {
-        if (!session()->has('is_logged_in')) {
-            return redirect()->route('login')->with('error', 'Silakan login terlebih dahulu.');
-        }
+✅ **CRUD Buku**  
+✅ **CRUD Kategori**  
+✅ **Cari Buku** by judul, penulis, penerbit, tahun
+✅ **Filter by category**  
+✅ **Upload book covers** (JPG, PNG, max 2MB)  
+✅ **Invoice report**:
 
-        return $next($request);
-    }
-}
+-   Total books
+-   Total categories
+-   Books count per category  
+    ✅ **Individual book invoice view**
+
+✅ **Bootstrap 5 UI** with responsive design
+
+---
+
+## ⚙️ Requirements
+
+-   PHP >= 8.1
+-   Laravel 10
+-   MySQL / MariaDB
+
+---
+
+## 💻 Installation
+
+1. Clone the repository
+
+```bash
+git clone https://github.com/zidan-herlangga/manajemen-buku.git
+cd manajemen-buku
 ```
 
----
----
----
+2. Install dependencies
 
-2. `app/Http/Controllers/BookController.php`
-
-
-
-```php
-<?php
-
-namespace App\Http\Controllers;
-
-use App\Models\Book;
-use App\Models\Category;
-use Illuminate\Http\Request;
-
-class BookController extends Controller
-{
-    // Menampilkan semua buku
-    public function index(Request $request)
-    {
-        $query = Book::with('category');
-
-        if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('title', 'like', '%' . $request->search . '%')
-                    ->orWhere('author', 'like', '%' . $request->search . '%');
-            });
-        }
-
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
-
-        $books = $query->latest()->paginate(10)->withQueryString();
-        $categories = Category::all();
-
-        return view('books.index', compact('books', 'categories'));
-    }
-
-    // Menampilkan form tambah buku
-    public function create()
-    {
-        $categories = Category::all(); // Untuk dropdown kategori
-        return view('books.create', compact('categories'));
-    }
-
-    // Menyimpan data buku baru
-    public function store(Request $request)
-    {
-        $request->validate([
-            'category_id' => 'required|exists:categories,id',
-            'title' => 'required|string|max:255',
-            'author' => 'required|string|max:255',
-            'year' => 'required|digits:4|integer|min:1900|max:' . date('Y'),
-        ]);
-
-        Book::create($request->all());
-
-        return redirect()->route('books.index')->with('success', 'Buku berhasil ditambahkan.');
-    }
-
-    // Menampilkan form edit buku
-    public function edit(Book $book)
-    {
-        $categories = Category::all();
-        return view('books.edit', compact('book', 'categories'));
-    }
-
-    // Menyimpan perubahan data buku
-    public function update(Request $request, Book $book)
-    {
-        $request->validate([
-            'category_id' => 'required|exists:categories,id',
-            'title' => 'required|string|max:255',
-            'author' => 'required|string|max:255',
-            'year' => 'required|digits:4|integer|min:1900|max:' . date('Y'),
-        ]);
-
-        $book->update($request->all());
-
-        return redirect()->route('books.index')->with('success', 'Buku berhasil diperbarui.');
-    }
-
-    // Menghapus buku
-    public function destroy(Book $book)
-    {
-        $book->delete();
-        return redirect()->route('books.index')->with('success', 'Buku berhasil dihapus.');
-    }
-}
-
+```bash
+composer install
 ```
+
+3. Install library PDF
+
+```bash
+composer require barryvdh/laravel-dompdf
+```
+
+4. Setup Environment
+
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+
+Edit `.env` and configure your database:
+
+```bash
+DB_DATABASE=manajemen_buku
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+5. Run migration & link storage
+
+```bash
+php artisan migrate
+php artisan storage:link
+```
+
+6. Add seeder
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+7. Run server
+
+```bash
+php artisan serve
+```
+
+Run: http://localhost:8000
+
+---
+
+## Review
+
+### 📌 Daftar Buku
+
+![Login](screenshots/login.png)
+
+### 📌 Daftar Buku
+
+![Daftar Buku](screenshots/daftarbuku.png)
+
+### 📌 Tambah Buku
+
+![Tambah Buku](screenshots/tambahbuku.png)
+
+### 📌 Edit Buku
+
+![Edit Buku](screenshots/editbuku.png)
+
+### 📌 Daftar Kategori
+
+![Tambah Buku](screenshots/daftarkategori.png)
+
+### 📌 Tambah Kategori
+
+![Tambah Kategori](screenshots/tambahkategori.png)
+
+### 📌 Edit Kategori
+
+![Tambah Kategori](screenshots/editkategori.png)
+
+---
+
+## Lisensi
+
+Projek ini open-source dibawah [MIT License](LICENSE).
+
+---
+
+## Credits
+
+-   Laravel
+-   Bootstrap
+-   Icons by Bootstrap Icons
