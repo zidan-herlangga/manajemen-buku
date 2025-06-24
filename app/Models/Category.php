@@ -13,6 +13,12 @@ class Category extends Model
     protected $table = 'categories';
     protected $primaryKey = 'id';
 
+    // Relasi ke Book
+    public function books()
+    {
+        return $this->hasMany(Book::class);
+    }
+
     public function category()
     {
         return $this->belongsTo(Category::class);

@@ -2,94 +2,138 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Book;        // Model untuk tabel 'books'
-use App\Models\Category;    // Model untuk tabel 'categories'
+use App\Models\Book;
+use App\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class BookController extends Controller
 {
-    // ✅ Menampilkan semua buku (dengan fitur pencarian & filter kategori)
+    // ✅ Menampilkan daftar buku dengan pencarian dan filter
     public function index(Request $request)
     {
-        $query = Book::with('category'); // Ambil relasi kategori agar lebih efisien
+        $query = Book::with('category');
 
-        // Jika ada pencarian judul atau penulis
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
                 $q->where('title', 'like', '%' . $request->search . '%')
-                    ->orWhere('author', 'like', '%' . $request->search . '%');
+                ->orWhere('author', 'like', '%' . $request->search . '%')
+                ->orWhere('publisher', 'like', '%' . $request->search . '%')
+                ->orWhere('year', 'like', '%' . $request->search . '%');
             });
         }
 
-        // Jika difilter berdasarkan kategori
         if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
         }
 
-        // Ambil data buku terbaru, paginasi 10 per halaman
         $books = $query->latest()->paginate(10)->withQueryString();
-
-        // Ambil semua kategori untuk dropdown filter
         $categories = Category::all();
 
-        // Tampilkan ke view books.index
-        return view('books.index', compact('books', 'categories'));
+        // Hitung kategori yang sudah dipakai (distinct category_id)
+        $usedCategoryCount = Book::distinct('category_id')->count('category_id');
+
+        return view('books.index', compact('books', 'categories', 'usedCategoryCount'));
     }
 
-    // ➕ Menampilkan form tambah buku
+    public function invoiceAll()
+    {
+        $books = Book::with('category')->get();
+
+        $pdf = Pdf::loadView('books.invoice_all', compact('books'))->setPaper('A4', 'landscape');
+
+        return $pdf->download('invoice-semua-buku.pdf');
+    }
+
+    // public function invoicePerBook(Book $book)
+    // {
+    //     return view('books.invoice_book', compact('book'));
+    // }
+
+    public function invoicePerBookPdf(Book $book)
+    {
+        $pdf = Pdf::loadView('books.invoice_book_pdf', compact('book'))->setPaper('A4');
+        return $pdf->download('invoice-buku-' . $book->id . '.pdf');
+    }
+
+
+    // ➕ Form tambah buku
     public function create()
     {
-        $categories = Category::all(); // Ambil semua kategori
-        return view('books.create', compact('categories')); // Kirim ke view create
+        $categories = Category::all();
+        return view('books.create', compact('categories'));
     }
 
-    // 💾 Menyimpan buku baru
+    // 💾 Simpan buku baru
     public function store(Request $request)
     {
-        // Validasi input
-        $request->validate([
+        $validated = $request->validate([
             'category_id' => 'required|exists:categories,id',
             'title' => 'required|string|max:255',
+            'publisher' => 'required|string|max:255',
             'author' => 'required|string|max:255',
             'year' => 'required|digits:4|integer|min:1900|max:' . date('Y'),
+            'cover' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
-        // Simpan ke database
-        Book::create($request->all());
+        if ($request->hasFile('cover')) {
+            $validated['cover'] = $request->file('cover')->store('covers', 'public');
+        }
 
-        // Redirect ke halaman utama dengan pesan sukses
+        Book::create($validated);
+
         return redirect()->route('books.index')->with('success', 'Buku berhasil ditambahkan.');
     }
 
-    // ✏️ Menampilkan form edit buku
-    public function edit(Book $book)
+    // 👁️ Detail buku
+    public function show(Book $book)
     {
-        $categories = Category::all(); // Ambil semua kategori
-        return view('books.edit', compact('book', 'categories')); // Kirim ke view edit
+        return view('books.show', compact('book'));
     }
 
-    // 🔁 Menyimpan perubahan buku
+    // ✏️ Form edit buku
+    public function edit(Book $book)
+    {
+        $categories = Category::all();
+        return view('books.edit', compact('book', 'categories'));
+    }
+
+    // 🔄 Update buku
     public function update(Request $request, Book $book)
     {
-        // Validasi input
-        $request->validate([
+        $validated = $request->validate([
             'category_id' => 'required|exists:categories,id',
             'title' => 'required|string|max:255',
+            'publisher' => 'required|string|max:255',
             'author' => 'required|string|max:255',
             'year' => 'required|digits:4|integer|min:1900|max:' . date('Y'),
+            'cover' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
-        // Update ke database
-        $book->update($request->all());
+        if ($request->hasFile('cover')) {
+            // Hapus cover lama jika ada
+            if ($book->cover && Storage::disk('public')->exists($book->cover)) {
+                Storage::disk('public')->delete($book->cover);
+            }
+            $validated['cover'] = $request->file('cover')->store('covers', 'public');
+        }
 
-        // Redirect ke halaman utama
+        $book->update($validated);
+
         return redirect()->route('books.index')->with('success', 'Buku berhasil diperbarui.');
     }
 
-    // ❌ Menghapus buku
+    // ❌ Hapus buku
     public function destroy(Book $book)
     {
-        $book->delete(); // Hapus data
+        if ($book->cover && Storage::disk('public')->exists($book->cover)) {
+            Storage::disk('public')->delete($book->cover);
+        }
+
+        $book->delete();
+
         return redirect()->route('books.index')->with('success', 'Buku berhasil dihapus.');
     }
 }

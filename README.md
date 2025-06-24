@@ -1,74 +1,122 @@
-# 📚 Aplikasi Manajemen Buku - Laravel 10
+## Penjelasan
 
-Proyek ini dibuat untuk memenuhi tugas Web Programming 2 dengan menggunakan Laravel 10. Aplikasi ini mendemonstrasikan fitur **CRUD (Create, Read, Update, Delete)** dengan **relasi antar tabel** menggunakan `books` dan `categories`.
+1. `app/Http/Middleware/SessionAuth.php`
 
----
+SessionAuth adalah pengaman untuk route, yang memastikan hanya user yang memiliki session is_logged_in yang boleh mengakses halaman tertentu. Jika belum login, mereka akan diarahkan ke halaman login.
 
-## 🔧 Fitur Aplikasi
+```php
+<?php
 
-- Autentikasi Login (Dummy / Database)
-- CRUD Buku
-- CRUD Kategori
-- Relasi Buku ↔ Kategori
-- Pencarian Buku berdasarkan Judul
-- Filter Buku berdasarkan Kategori
-- UI Modern dengan Bootstrap
-- Halaman Welcome
+namespace App\Http\Middleware;
 
----
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
-## 📂 Struktur Tabel
+class SessionAuth
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        if (!session()->has('is_logged_in')) {
+            return redirect()->route('login')->with('error', 'Silakan login terlebih dahulu.');
+        }
 
-### 📘 Tabel `books`
-| Field       | Tipe Data    |
-|-------------|--------------|
-| id          | bigint       |
-| category_id | foreign key  |
-| title       | string       |
-| author      | string       |
-| year        | integer      |
-
-### 🗂️ Tabel `categories`
-| Field | Tipe Data |
-|-------|-----------|
-| id    | bigint    |
-| name  | string    |
-
----
-
-## 🔐 Akun Login Dummy
-
-```txt
-Username: admin
-Password: admin
+        return $next($request);
+    }
+}
 ```
 
 ---
+---
+---
 
-## Instalasi & Menjalankan
+2. `app/Http/Controllers/BookController.php`
 
-1. Clone Repository
-```bash
-git clone https://github.com/zidan-herlangga/manajemen-buku.git
-cd manajemen-buku
-```
 
-2. Install Dependency
-```bash
-composer install
-```
 
-3. Copy File `.env`
-```bash
-cp .env.example .env
-```
+```php
+<?php
 
-4. Generate Key
-```bash
-php artisan key:generate
-```
+namespace App\Http\Controllers;
 
-5. Jalankan Server
-```bash
-php artisan serve
+use App\Models\Book;
+use App\Models\Category;
+use Illuminate\Http\Request;
+
+class BookController extends Controller
+{
+    // Menampilkan semua buku
+    public function index(Request $request)
+    {
+        $query = Book::with('category');
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('title', 'like', '%' . $request->search . '%')
+                    ->orWhere('author', 'like', '%' . $request->search . '%');
+            });
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        $books = $query->latest()->paginate(10)->withQueryString();
+        $categories = Category::all();
+
+        return view('books.index', compact('books', 'categories'));
+    }
+
+    // Menampilkan form tambah buku
+    public function create()
+    {
+        $categories = Category::all(); // Untuk dropdown kategori
+        return view('books.create', compact('categories'));
+    }
+
+    // Menyimpan data buku baru
+    public function store(Request $request)
+    {
+        $request->validate([
+            'category_id' => 'required|exists:categories,id',
+            'title' => 'required|string|max:255',
+            'author' => 'required|string|max:255',
+            'year' => 'required|digits:4|integer|min:1900|max:' . date('Y'),
+        ]);
+
+        Book::create($request->all());
+
+        return redirect()->route('books.index')->with('success', 'Buku berhasil ditambahkan.');
+    }
+
+    // Menampilkan form edit buku
+    public function edit(Book $book)
+    {
+        $categories = Category::all();
+        return view('books.edit', compact('book', 'categories'));
+    }
+
+    // Menyimpan perubahan data buku
+    public function update(Request $request, Book $book)
+    {
+        $request->validate([
+            'category_id' => 'required|exists:categories,id',
+            'title' => 'required|string|max:255',
+            'author' => 'required|string|max:255',
+            'year' => 'required|digits:4|integer|min:1900|max:' . date('Y'),
+        ]);
+
+        $book->update($request->all());
+
+        return redirect()->route('books.index')->with('success', 'Buku berhasil diperbarui.');
+    }
+
+    // Menghapus buku
+    public function destroy(Book $book)
+    {
+        $book->delete();
+        return redirect()->route('books.index')->with('success', 'Buku berhasil dihapus.');
+    }
+}
+
 ```
